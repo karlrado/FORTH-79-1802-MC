@@ -186,6 +186,16 @@ RF      EQU 15
         ; Set to $8000 for MC card with ROM at $0000
         ; Should work on any page boundary
 RELOC   EQU $8000
+        ; MCSMP Entry points for MCSMP at $0000
+        ; - These would have to be changed for MCSMP at $8000
+        ; - The NOTSCRT routines are called NOT* because they are not standard
+MCSMPINPUT  EQU $0005
+MCSMPOUTPUT EQU $021D
+MCSMPOUTSTR EQU $0526
+MCSMPSERIAL EQU $FFCD
+NOTSCRTCALL EQU $0ADB
+NOTSCRTRET  EQU $0AED
+        ;
 FIRSTB  EQU $4000 + RELOC ; ADDRESS OF FIRST DISK BUFFER
 LIMITB  EQU $6C2C + RELOC ; END OF DISK BUFFER AREA
 CSTACK  EQU 9
@@ -197,20 +207,48 @@ RSTACK  EQU 2
         ;
         DIS
         DB $00
-        OUT 1               ; SET LEVEL 1 I/O
-        DB $01
-        OUT 3               ; SET UP UART
-        DB $1D
-        LDI HIGH ($00 + RELOC)
-        PHI 3
-        LDI $5E
-        PLO 3
-        LDI HIGH ($2F + RELOC)
-        PHI 2
-        LDI $FF
-        PLO 2
+        ; Set up to use MCSMP
+        LDI HIGH NOTSCRTCALL
+        PHI R4
+        LDI LOW NOTSCRTCALL
+        PLO R4
+        LDI HIGH NOTSCRTRET
+        PHI R5
+        LDI LOW NOTSCRTRET
+        PLO R5
+        ; Get the serial settings out of MCSMP
+        LDI HIGH MCSMPSERIAL
+        PHI R3
+        LDI LOW MCSMPSERIAL
+        PLO R3
+        LDA R3
+        PHI RE
+        LDN R3
+        PLO RE
+        ; Start
+        LDI HIGH START
+        PHI R3
+        LDI LOW START
+        PLO R3
         SEP 3
 	;
+        ; "Patch" for EMIT to send a single character
+        ; Code moved here only to avoid short branch issues.
+CSEND1: GLO RB          ; Preserve RB  
+        STR R2
+        DEC R2
+        INC R9
+        LDN R9
+        PLO RB
+        SEP R4
+        DW MCSMPOUTPUT
+        INC R2
+        LDN R2
+        PLO RB
+        DEC R9
+        DEC R9
+        DEC R9
+        SEP RC
 	;
         ;
         ORG $005E + RELOC
@@ -219,20 +257,20 @@ START:  NOP
         LBR COLD            ; COLD START
         NOP
         LBR WARM            ; WARM START
-        DW $070A          ; CPU NUMBER
-        DW $0001          ; REVISION NUMBER
-        DW TASK - 7        ; TOPMOST PRGM IN FORTH VOCABULARY
-        DW $0008          ; BACKSPACE
-        DW $2000 + RELOC  ; INITIAL USER AREA         UP
-        DW $1F00 + RELOC  ; INITAL STACK              S0
-        DW $1FFF + RELOC  ; INITAL RETURN STACK       R0
-        DW $1F80 + RELOC  ; TERMINAL BUFFER           TIB
-        DW $001F          ; NAME FIELD WIDTH          WIDTH
+        DW $070A            ; CPU NUMBER
+        DW $0001            ; REVISION NUMBER
+        DW TASK - 7         ; TOPMOST PRGM IN FORTH VOCABULARY
+        DW $0008            ; BACKSPACE
+        DW $2000 + RELOC    ; INITIAL USER AREA         UP
+        DW $1F00 + RELOC    ; INITAL STACK              S0
+        DW $1FFF + RELOC    ; INITAL RETURN STACK       R0
+        DW $1F80 + RELOC    ; TERMINAL BUFFER           TIB
+        DW $001F            ; NAME FIELD WIDTH          WIDTH
                             ;   (31 DECIMAL)
-        DW $0000          ; WARNING                   WARNING
-        DW LEND            ; FENCE                     FENCE
-        DW LEND            ; INIT DICTIONARY POINTER   DP
-        DW FRTH + 16       ; INIT VOCAB                VOC-LINK
+        DW $0000            ; WARNING                   WARNING
+        DW LEND             ; FENCE                     FENCE
+        DW LEND             ; INIT DICTIONARY POINTER   DP
+        DW FRTH + 16        ; INIT VOCAB                VOC-LINK
 	;
 	;
         DB $83,"LI",$D4 ; LIT
@@ -1231,21 +1269,11 @@ CSEND:  DW $ + 2
         LDN R8
         ADCI $00
         STR R8
-; WAIT UNTIL UART FREE AND
 ; SEND OUT CHARACTER WHICH IS ON
 ; THE COMP.STACK
-CSEND1: SEX R2
-        INP R3              ; GET UART STATUS
-        SHL                 ; GET THRE FLAG
-        BNF CSEND1
-        SEX R9
-        INC R9
-        OUT 2
-        DEC R9
-        DEC R9
-        DEC R9
-        DEC R9
-        SEP RC
+; Jump to patch because code doesn't fit here.
+; Trying to avoid disrupting short branches across page boundaries
+        LBR CSEND1
 	;
         ;
         DB $83,"KE",$D9  ; KEY   READ KEYBOARD
@@ -1255,15 +1283,21 @@ KEY:    DW $ + 2
         IRX
         IRX
         IRX
-KEY1:   INP R3              ; GET DA BIT FROM
-        SHR					; UART STATUS BYTE
-        BNF KEY1            ; WAIT 'TILL DATA AVAIL.
-        INP 2               ; GET DATA
-        ANI $7F            ; STRIP PARITY BIT
+        GLO RB          ; Preserve RB
+        STR R2
+        DEC R2
+        SEP R4
+        DW MCSMPINPUT
+        SEX CSTACK
+        GLO RB
+        ANI $7F
         STR CSTACK
         DEC CSTACK
         LDI $00
         STR CSTACK
+        INC R2
+        LDN R2
+        PLO RB
         SEP RC
         ;
         ; TEST FOR BREAK
@@ -1272,17 +1306,15 @@ KEY1:   INP R3              ; GET DA BIT FROM
 	DW KEY - 6
 ; ASSUME THAT A FRAMING ERROR INDICATES
 ; THAT THE BREAK KEY IS OR WAS PRESSED.
+; This is now a NOOP for MC
 QTERM:  DW $ + 2
         SEX CSTACK
         IRX
         IRX
         IRX
-        INP 3               ; GET NEW STATUS BYTE
-        ANI $08            ; FET FRAMING ERROR BIT
-        STXD
-        INP 2               ; DO A DUMMY READ TO
-; CLEAR THE DATA AVAILABLE SIGNAL
+        ; Store a 0 for framing error bit instead of reading it from UART
         LDI $00
+        STXD
         STR CSTACK
         SEP RC
         ;
@@ -1291,23 +1323,25 @@ QTERM:  DW $ + 2
         DB $82,$43,$D2  ; CR
         DW QTERM - 12
 CR:     DW $ + 2
-        SEX RSTACK
-CR1:    INP 3               ; GET THRE BIT
-        SHL
-        BNF CR1
+        GLO RB          ; Preserve RB
+        STR R2
+        DEC R2
         LDI $0D
-        STR RSTACK
-        OUT 2
-        DEC RSTACK
-CR2:    INP 3
-        SHL
-        BNF CR2
+        PLO RB
+        SEP R4
+        DW MCSMPOUTPUT
         LDI $0A
-        STR RSTACK
-        OUT 2
-        DEC RSTACK
+        PLO RB
+        SEP R4
+        DW MCSMPOUTPUT
+        INC R2
+        LDN R2
+        PLO RB
         SEX R9
         SEP RC
+; Trying to avoid disrupting short branches across page boundaries
+        DB 0,0,0,0
+        DB 0,0,0,0
         ;
         ;
 NEST:   GHI RA
@@ -2892,13 +2926,13 @@ MSMOD:  DW NEST
         ;
         DB $83,"MO",$CE  ; MON
         DW MSMOD - 8       ; RETURN TO MONITOR
-MON:    DW $ + 2           ; AT 8000 HEX
-        LDI $80
-        PHI R0
-        LDI $00
-        PLO R0
-        SEX R0
-        SEP R0
+MON:    DW $ + 2
+        ; Return to the MCSMP Monitor via SEP R1
+        ; - We could instead jump back into the monitor with a LBR,
+        ;   which would free up R1.  But having R1 intact is handy
+        ;   for setting D1 breakpoints under MCSMP.  And R1 isn't
+        ;   used anyway.
+        SEP R1
         ;
         ;
         DB $83,"BY",$C5  ; BYE
