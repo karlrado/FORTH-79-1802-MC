@@ -181,12 +181,17 @@ RE      EQU 14
 RF      EQU 15
 
 ;
-FIRSTB  EQU  $4000 ; ADDRESS OF FIRST DISK BUFFER
-LIMITB  EQU $6C2C ; END OF DISK BUFFER AREA
-CSTACK  EQU  9
+        ; RELOCATION OFFSET
+        ; Set to $0000 for MC card with ROM at $8000
+        ; Set to $8000 for MC card with ROM at $0000
+        ; Should work on any page boundary
+RELOC   EQU $8000
+FIRSTB  EQU $4000 + RELOC ; ADDRESS OF FIRST DISK BUFFER
+LIMITB  EQU $6C2C + RELOC ; END OF DISK BUFFER AREA
+CSTACK  EQU 9
 RSTACK  EQU 2
 	;
-        ORG $0000
+        ORG $0000 + RELOC
         ;
         ; SET-UP ROUTINES
         ;
@@ -196,11 +201,11 @@ RSTACK  EQU 2
         DB $01
         OUT 3               ; SET UP UART
         DB $1D
-        LDI $00
+        LDI HIGH ($00 + RELOC)
         PHI 3
         LDI $5E
         PLO 3
-        LDI $2F
+        LDI HIGH ($2F + RELOC)
         PHI 2
         LDI $FF
         PLO 2
@@ -208,7 +213,7 @@ RSTACK  EQU 2
 	;
 	;
         ;
-        ORG $005E
+        ORG $005E + RELOC
 	;
 START:  NOP
         LBR COLD            ; COLD START
@@ -218,10 +223,10 @@ START:  NOP
         DW $0001          ; REVISION NUMBER
         DW TASK - 7        ; TOPMOST PRGM IN FORTH VOCABULARY
         DW $0008          ; BACKSPACE
-        DW $2000          ; INITIAL USER AREA         UP
-        DW $1F00          ; INITAL STACK              S0
-        DW $1FFF          ; INITAL RETURN STACK       R0
-        DW $1F80          ; TERMINAL BUFFER           TIB
+        DW $2000 + RELOC  ; INITIAL USER AREA         UP
+        DW $1F00 + RELOC  ; INITAL STACK              S0
+        DW $1FFF + RELOC  ; INITAL RETURN STACK       R0
+        DW $1F80 + RELOC  ; TERMINAL BUFFER           TIB
         DW $001F          ; NAME FIELD WIDTH          WIDTH
                             ;   (31 DECIMAL)
         DW $0000          ; WARNING                   WARNING
@@ -1407,7 +1412,7 @@ BSCR:   DW CONST
         DB $86,"ORIGI",$CE ; ORIGIN
         DW BSCR - 8
 ORGN:   DW CONST
-        DW $005E
+        DW START
         ;
         DB $87,"+ORIGI",$CE ; +ORIGIN
 
@@ -3800,7 +3805,7 @@ COLD:   LDI HIGH (START + 12) ; >> 8
         PLO R7
         LDI HIGH (FRTH + 14) ; >> 8
         PHI R8
-        LDI ((FRTH + 14) AND $00FF)
+        LDI LOW (FRTH + 14)
         PLO R8
         LDA R7
         STR R8
@@ -3813,7 +3818,7 @@ WARM:   LDI $10
 PUTF:   PLO RF
         LDI HIGH (START + $10) ; >> 8
         PHI R7
-        LDI (START + $10)
+        LDI LOW (START + $10)
         PLO R7
         LDA R7
         PHI RD
@@ -3821,7 +3826,7 @@ PUTF:   PLO RF
         LDN R7
         PLO RD
         PLO R8
-        LDI (START + 12)
+        LDI LOW (START + 12)
         PLO R7
 WRMLP:  LDA R7
         STR R8
@@ -3831,9 +3836,9 @@ WRMLP:  LDA R7
         BNZ WRMLP
         LDI HIGH NEXT ;>> 8
         PHI RC
-        LDI NEXT
+        LDI LOW NEXT
         PLO RC
-        LDI ((ABORT + 2) AND $00FF)
+        LDI LOW (ABORT + 2)
         PLO RA
         LDI HIGH (ABORT + 2) ;>> 8
         PHI RA
