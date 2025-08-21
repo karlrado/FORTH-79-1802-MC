@@ -2526,7 +2526,7 @@ QSTK:   DW NEST
         DW ONE
         DW QERR
         DW LIT
-        DW $0100
+        DW $0080  ; kws Size of the allocated area for computation stack
         DW PLUS
         DW FSPAT
         DW LESS
