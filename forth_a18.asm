@@ -173,6 +173,7 @@
 ;
 ;
         INCL "1802reg.asm"
+        ; Additional register definitions local to this file.
 RA      EQU 10
 RB      EQU 11
 RC      EQU 12
@@ -226,11 +227,17 @@ RSTACK  EQU 2
         LDN R3
         PLO RE
         ; Start
-        LDI HIGH START
+        LDI HIGH START1
         PHI R3
-        LDI LOW START
+        LDI LOW START1
         PLO R3
         SEP 3
+START1: ; Send a null to get the MCSMP Q line in the right state to avoid first character corruption
+        LDI 0
+        PLO RB
+        SEP R4
+        DW MCSMPOUTPUT
+        LBR START
 	;
         ; "Patch" for EMIT to send a single character
         ; Code moved here only to avoid short branch issues.
@@ -864,7 +871,7 @@ SP1:    DW $ + 2
         DW SP1 - 6
 RP1:    DW $ + 2
         GLO RD
-        ADI R8
+        ADI $08  ; Offset of initial Return stack pointer in USER
         PLO R8
         GHI RD
         ADCI $00
