@@ -185,17 +185,24 @@ RF      EQU 15
         ; RELOCATION OFFSET
         ; Set to $0000 for MC card with ROM at $8000
         ; Set to $8000 for MC card with ROM at $0000
-        ; Should work on any page boundary
 RELOC   EQU $8000
-        ; MCSMP Entry points for MCSMP at $0000
-        ; - These would have to be changed for MCSMP at $8000
-        ; - The NOTSCRT routines are called NOT* because they are not standard
+        ; MCSMP Entry points
+        ; - The NOTSCRT routines are called NOT* because they are not Standard
+        IF RELOC LT $8000
+MCSMPINPUT  EQU $8005
+MCSMPOUTPUT EQU $821D
+MCSMPOUTSTR EQU $8526
+MCSMPSERIAL EQU $7FCD
+NOTSCRTCALL EQU $8ADB
+NOTSCRTRET  EQU $8AED
+        ELSE
 MCSMPINPUT  EQU $0005
 MCSMPOUTPUT EQU $021D
 MCSMPOUTSTR EQU $0526
 MCSMPSERIAL EQU $FFCD
 NOTSCRTCALL EQU $0ADB
 NOTSCRTRET  EQU $0AED
+        ENDI
         ;
 FIRSTB  EQU $4000 + RELOC ; ADDRESS OF FIRST DISK BUFFER
 LIMITB  EQU $6C2C + RELOC ; END OF DISK BUFFER AREA
@@ -1278,8 +1285,7 @@ CSEND:  DW $ + 2
         STR R8
 ; SEND OUT CHARACTER WHICH IS ON
 ; THE COMP.STACK
-; Jump to patch because code doesn't fit here.
-; Trying to avoid disrupting short branches across page boundaries
+; Move this code to avoid short branch across page boundaries.
         LBR CSEND1
 	;
         ;
@@ -1346,9 +1352,9 @@ CR:     DW $ + 2
         PLO RB
         SEX R9
         SEP RC
-; Trying to avoid disrupting short branches across page boundaries
-        DB 0,0,0,0
-        DB 0,0,0,0
+; Avoid short branch across page boundaries.
+; The original address for NEST is x5c2.
+        DB 0,0,0,0,0,0,0,0,0
         ;
         ;
 NEST:   GHI RA
