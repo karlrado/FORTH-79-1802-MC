@@ -1292,23 +1292,21 @@ CSEND:  DW $ + 2
         DB $83,"KE",$D9  ; KEY   READ KEYBOARD
         DW EMIT - 7
 KEY:    DW $ + 2
-        SEX CSTACK
-        IRX
-        IRX
-        IRX
-        GLO RB          ; Preserve RB
-        STR R2
+        INC R9
+        INC R9
+        INC R9  ; Bump to low byte of stack item to return char
+        GLO RB  
+        STR R2  ; Save RB.0 on return stack (Let MCSMP do SEX R2)
         DEC R2
         SEP R4
         DW MCSMPINPUT
-        SEX CSTACK
         GLO RB
         ANI $7F
-        STR CSTACK
-        DEC CSTACK
+        STR R9  ; Store character in low byte of return word
+        DEC R9  
         LDI $00
-        STR CSTACK
-        INC R2
+        STR R9  ; High byte of returned item 
+        INC R2  ; Restore RB.0
         LDN R2
         PLO RB
         SEP RC
@@ -1354,7 +1352,7 @@ CR:     DW $ + 2
         SEP RC
 ; Avoid short branch across page boundaries.
 ; The original address for NEST is x5c2.
-        DB 0,0,0,0,0,0,0,0,0
+        DB 0,0,0,0,0,0,0,0,0,0,0
         ;
         ;
 NEST:   GHI RA
