@@ -2528,23 +2528,46 @@ DLTL1:  DW SEMIS
         ;
         DB $86,"?STAC",$CB ; ?STACK
         DW DLTL - 11
+        ; Updated to read the computation stack pointer first, before pushing anything else onto the stack.
+        ; This ensures that we're testing the stack pointer at the start of QSTK and not after any pushes done by QSTK.
 QSTK:   DW NEST
+        DW FSPAT
+        DW DUP
         DW SO
         DW AT
-        DW DUP
-        DW FSPAT
+        DW SWAP
         DW GTR
         DW ONE
         DW QERR
+        DW SO
+        DW AT
         DW LIT
-        DW $0080  ; kws Size of the allocated area for computation stack
+        DW $0080  ; Size of the allocated area for computation stack
         DW PLUS
-        DW FSPAT
+        DW SWAP
         DW LESS
         DW LIT
         DW $0007
         DW QERR
         DW SEMIS
+; Old code
+;QSTK:   DW NEST
+;        DW SO
+;        DW AT
+;        DW DUP
+;        DW FSPAT
+;        DW GTR
+;        DW ONE
+;        DW QERR
+;        DW LIT
+;        DW $0080  ; kws Size of the allocated area for computation stack
+;        DW PLUS
+;        DW FSPAT
+;        DW LESS
+;        DW LIT
+;        DW $0007
+;        DW QERR
+;        DW SEMIS
         ;
         ;
         DB $89,"INTERPRE",$D4 ; INTERPRET
