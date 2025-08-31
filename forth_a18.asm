@@ -3889,6 +3889,34 @@ WRMLP:  LDA R7
         PLO RA
         LDI HIGH (ABORT + 2) ;>> 8
         PHI RA
+        ; Clear stack areas for debugging
+        LOAD R7, START + $14
+        LDA R7
+        PHI R9
+        LDN R7
+        PLO R9  ; R9 has end address
+        LOAD R7, START + $12
+        LDA R7
+        PHI R8
+        LDN R7
+        PLO R8  ; R8 has start address
+        SEX R7
+        GLO R9  ; Compute count (R9 - start address)
+        SM
+        PLO R9
+        DEC R7
+        GHI R9
+        SMB
+        PHI R9
+        INC R9  ; R9 has count
+ZEROLP: LDI $0
+        STR R8
+        INC R8
+        DEC R9
+        GHI R9
+        BNZ ZEROLP
+        GLO R9
+        BNZ ZEROLP
         LBR (RP1 + 2)
         ;
 LEND:   NOP                 ; INITIAL FENCE IS HERE
