@@ -1313,20 +1313,26 @@ KEY:    DW $ + 2
         ;
         ; TEST FOR BREAK
         ;
+        ; This seems to work with the MC and TeraTerm (Alt-B)
         DB $89,"?TERMINA",$CC ; ?TERMINAL
 	DW KEY - 6
-; ASSUME THAT A FRAMING ERROR INDICATES
-; THAT THE BREAK KEY IS OR WAS PRESSED.
-; This is now a NOOP for MC
 QTERM:  DW $ + 2
-        SEX CSTACK
-        IRX
-        IRX
-        IRX
-        ; Store a 0 for framing error bit instead of reading it from UART
+        INC R9          ; Point at high byte of next word
+        INC R9
         LDI $00
-        STXD
-        STR CSTACK
+        STR R9          ; Always zero
+        INC R9          ; Move on to low byte
+        GHI RE          ; RE has serial parameters - Bit 0 is line invert flag
+        ANI $01         ; Get Q invert flag
+        BZ QTERMINV     ; Inverted in this context means line is active low(EF3 false/low/off)
+        B3 QTERM0       ; Line active, store 1 (D is 0x01 now) on CSTACK and leave
+        LDI $00
+        BR QTERM0       ; Line not active, store 0 on CSTACK and leave
+QTERMINV:
+        B3 QTERM0       ; Line not active, store 0 (D is 0x00 now) on CSTACK and leave
+        LDI $01         ; Line active, store 1 on CSTACK and leave
+QTERM0: STR R9
+        DEC R9          ; Back up to high byte of top of computation stack
         SEP RC
         ;
         ; SEND CR/LF TO TERMINAL
@@ -1350,9 +1356,6 @@ CR:     DW $ + 2
         PLO RB
         SEX R9
         SEP RC
-; Avoid short branch across page boundaries.
-; The original address for NEST is x5c2.
-        DB 0,0,0,0,0,0,0,0,0,0,0
         ;
         ;
 NEST:   GHI RA
@@ -3339,6 +3342,7 @@ CLD:    DW $ + 2
         LBR COLD
         ;
         ;
+        PAGE
         DB $84,"S->",$C4 ; S->D
         DW CLD - 7
 STOD:   DW $ + 2
