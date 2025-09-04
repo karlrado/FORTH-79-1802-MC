@@ -204,10 +204,36 @@ NOTSCRTCALL EQU $0ADB
 NOTSCRTRET  EQU $0AED
         ENDI
         ;
+        ; Buffers are 1024+4 bytes in length
+        ; There are $2C2C (11,308) bytes or 11 buffers defined here
 FIRSTB  EQU $4000 + RELOC ; ADDRESS OF FIRST DISK BUFFER
 LIMITB  EQU $6C2C + RELOC ; END OF DISK BUFFER AREA
-CSTACK  EQU 9
-RSTACK  EQU 2
+        ;
+        ; User Variable Layout
+        ;
+        ; Offset Name           Use
+        ; $0006  SO             (S Zero) Initial value of computation stack
+        ; $0008  RO             (R Zero) Initial value of return stack
+        ; $000A  TIB            Start of terminal input buffer
+        ; $000C  WIDTH          Max nbr of letters in a compiled definition's name (31)
+        ; $000E  WARNING        Message control
+        ; $0010  FENCE          FORGET boundary
+        ; $0012  DP             Dictionary pointer
+        ; $0014  VOC-LINK       Address of most recently created vocabulary
+        ; $0016  BLK            Block number being interpreted (0 = terminal)
+        ; $0018  IN             Byte offset within text input buffer
+        ; $001A  OUT            Output character counter
+        ; $001C  SCR            Current screen number
+        ; $001E  OFFSET         Block offset to disk drives
+        ; $0020  CONTEXT        Pointer to where directory searches begin
+        ; $0022  CURRENT        Current vocabulary
+        ; $0024  STATE          Interpreter state
+        ; $0026  BASE           Numeric base (e.g., 10)
+        ; $0028  DPL            Number of digits to the right of decimal point
+        ; $002A  FLD            Output field width (unused)
+        ; $002C  CSP            Temp storage for stack pointer
+        ; $002E  R#             Location of editing cursor
+        ; $0030  HLD            HOLD for inserting char into pictured numeric output string
         ;
         ORG $0000 + RELOC
         ;
@@ -3942,6 +3968,7 @@ ZEROLP: LDI $0
         BNZ ZEROLP
         GLO R9
         BNZ ZEROLP
+        ; Finished clearing stack areas
         LBR (RP1 + 2)
         ;
 LEND:   NOP                 ; INITIAL FENCE IS HERE
