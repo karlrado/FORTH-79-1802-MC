@@ -208,7 +208,7 @@ FIRSTB  EQU $4000 + RELOC ; ADDRESS OF FIRST DISK BUFFER
 LIMITB  EQU $6C2C + RELOC ; END OF DISK BUFFER AREA
 CSTACK  EQU 9
 RSTACK  EQU 2
-	;
+        ;
         ORG $0000 + RELOC
         ;
         ; SET-UP ROUTINES
@@ -245,7 +245,7 @@ START1: ; Send a null to get the MCSMP Q line in the right state to avoid first 
         SEP R4
         DW MCSMPOUTPUT
         LBR START
-	;
+        ;
         ; "Patch" for EMIT to send a single character
         ; Code moved here only to avoid short branch issues.
 CSEND1: GLO RB          ; Preserve RB  
@@ -263,10 +263,10 @@ CSEND1: GLO RB          ; Preserve RB
         DEC R9
         DEC R9
         SEP RC
-	;
+        ;
         ;
         ORG $005E + RELOC
-	;
+        ;
 START:  NOP
         LBR COLD            ; COLD START
         NOP
@@ -285,8 +285,8 @@ START:  NOP
         DW LEND             ; FENCE                     FENCE
         DW LEND             ; INIT DICTIONARY POINTER   DP
         DW FRTH + 16        ; INIT VOCAB                VOC-LINK
-	;
-	;
+        ;
+        ;
         DB $83,"LI",$D4 ; LIT
         DW $0000
 LIT:    DW $ + 2
@@ -299,7 +299,7 @@ LIT:    DW $ + 2
         STR R9
         DEC R9
         SEP RC
-	;
+        ;
         ;
         ; NEXT INNER INTERPRETER
         SEP R3              ; LEAVE RC AT NEXT
@@ -314,7 +314,7 @@ WBR:    LDA RB
         BR NEXT - 1
         ; EXECUTE
         DB $87,"EXECUT",$C5 ; EXECUTE
-	DW LIT - 6
+        DW LIT - 6
 EXE:    DW $ + 2
         LDA R9
         PHI RB
@@ -328,8 +328,8 @@ EXE:    DW $ + 2
         INC RC              ; POINT TO WBR
         INC RC
         SEP RC
-	;
-	;
+        ;
+        ;
         DB $86,"BRANC",$C8 ; BRANCH
         DW EXE - 10
 BRCH:   DW $ + 2
@@ -340,10 +340,10 @@ BRANCH: LDA RA
         LDN R2
         PHI RA
         SEP RC
-	;
-	;
+        ;
+        ;
         DB $87,"0BRANC",$C8 ; 0BRANCH
-	DW BRCH - 9
+        DW BRCH - 9
 ZBRCH:  DW $ + 2
         LDA R9
         BNZ NO
@@ -359,7 +359,7 @@ NO:     INC RA
         DEC R9
         DEC R9
         SEP RC
-	;
+        ;
         DB $86,"(LOOP",$A9 ; (LOOP)
         DW ZBRCH - 10
 LUPE:   DW $ + 2
@@ -403,9 +403,9 @@ CEND:   INC RA
         INC R2
         INC R2
         SEP RC
-	;
+        ;
         DB $87,"(+LOOP",$A9 ; (+LOOP)
-	  DW LUPE - 9
+        DW LUPE - 9
 PLUPE:  DW $ + 2
         INC R2
         GHI R2
@@ -439,8 +439,8 @@ LUPE1:  INC R8
         LDN R8
         SMB
         BR COMP + 8
-	;
-	;
+        ;
+        ;
         DB $84,"(DO",$A9 ; (DO)
         DW PLUPE - 10
 PDO:    DW $ + 2
@@ -461,8 +461,8 @@ PDO:    DW $ + 2
         DEC R9
         DEC R9
         SEP RC
-	;
-	;
+        ;
+        ;
         DB $85,"DIGI",$D4 ; DIGIT
         DW PDO - 7
 DGT:    DW $ + 2
@@ -489,7 +489,7 @@ BAD:    LDI $00
         STXD
         STR R9
         SEP RC
-	;
+        ;
         DB $86,"(FIND",$A9 ; (FIND)
         DW DGT - 8
 FIND:   DW $ + 2
@@ -569,10 +569,10 @@ BOK:    LDA R7
         LDA R9
         PHI R8
         BR LOOP1
-	;
-	;
+        ;
+        ;
         DB $87,"ENCLOS",$C5 ; ENCLOSURE
-	DW FIND -9
+        DW FIND -9
 ENCL:   DW $ + 2
         DEC R9
         DEC R9
@@ -627,7 +627,7 @@ DELIM:  INC R7
         STR R9
         DEC R7
         BR SKIP
-	;
+        ;
         DB $85,"CMOV",$C5 ; CMOVE
         DW ENCL - 10
 CMOVE:  DW $ + 2
@@ -671,7 +671,7 @@ END2:   LDA R2              ; POP RA
         LDN R2
         PHI RA
         SEP RC
-	;
+        ;
         DB $82,$55,$AA  ; U*
                             ; UNSIGNED 16 X 16 BIT MULTIPLY
         DW CMOVE - 8
@@ -721,7 +721,7 @@ UOUT:   DEC R9              ; MOVE REST OF
         INC R9
         INC R9
         SEP RC
-	;
+        ;
         DB $82,$55,$AF  ; U/ UNSIGNED DIVIDE
         DW USTAR - 5
 USLSH:  DW $ + 2
@@ -778,7 +778,7 @@ SKPD8:  DEC R9
         BNZ LPC5
         DEC R9
         BR UOUT
-	;
+        ;
         DB $83,"AN",$C4  ; AND
         DW USLSH - 5
 FAND:   DW $ + 2
@@ -799,7 +799,7 @@ FAND:   DW $ + 2
         DEC R9
         DEC R9
         SEP RC
-	;
+        ;
         DB $82,$4F,$D2  ; OR
         DW FAND - 6
 FFOR:   DW $ + 2
@@ -820,7 +820,7 @@ FFOR:   DW $ + 2
         DEC R9
         DEC R9
         SEP RC
-	;
+        ;
         DB $83,"XO",$D2   ; XOR
         DW FFOR - 5
 FXOR:   DW $ + 2
@@ -841,7 +841,7 @@ FXOR:   DW $ + 2
         DEC R9
         DEC R9
         SEP RC
-	;
+        ;
         DB $83,"SP",$C0  ; SP@
         DW FXOR - 6
 FSPAT:  DW $ + 2
@@ -856,7 +856,7 @@ FSPAT:  DW $ + 2
         LDN R2
         STR R9
         SEP RC
-	;
+        ;
         DB $83,"SP",$A1  ; SP!
                             ;   stack pointer store
         DW FSPAT - 6
@@ -872,7 +872,7 @@ SP1:    DW $ + 2
         LDN R8
         PLO R9
         SEP RC
-	;
+        ;
         DB $83,"RP",$A1  ; RP!
                             ; RETURN STACK POINTER STORE
         DW SP1 - 6
@@ -888,7 +888,7 @@ RP1:    DW $ + 2
         LDN R8
         PLO R2
         SEP RC
-	;
+        ;
         DB $82,$3B,$D3  ; S (UNEST)
         DW RP1 - 6
 SEMIS:  DW $ + 2
@@ -915,7 +915,7 @@ LVE:    DW $ + 2
         INC R8
         STR R8
         SEP RC
-	;
+        ;
         DB $82,$3E,$D2  ; >R   TO R
         DW LVE - 8
 GR:     DW $ + 2
@@ -928,7 +928,7 @@ GR:     DW $ + 2
         DEC R9
         DEC R9
         SEP RC
-	;
+        ;
         DB $82,$52,$BE  ; R>   FROM R
         DW GR - 5
 RG:     DW $ + 2
@@ -942,7 +942,7 @@ RG:     DW $ + 2
         LDN R2
         STR R9
         SEP RC
-	;
+        ;
         DW $81D2          ; R   COPY TOP OF RETN
         DW RG - 5          ; STACK TO TOP OF
 R:      DW $ + 2           ; COMPUTATION STACK
@@ -960,7 +960,7 @@ R:      DW $ + 2           ; COMPUTATION STACK
         LDN R8
         STR R9
         SEP RC
-	;
+        ;
         DB $82,$30,$BD  ; 0=
         DW R - 4
 ZEQAL:  DW $ + 2
@@ -976,7 +976,7 @@ STOR:   STR R9
         LDI $00
         STR R9
         SEP RC
-	;
+        ;
         DB $82,$30,$BC  ; 0<
         DW ZEQAL - 5
 ZLESS:  DW $ + 2
@@ -984,7 +984,7 @@ ZLESS:  DW $ + 2
         SHL
         BDF ZONE
         BR NONE
-	;
+        ;
         DW $81AB          ; +
         DW ZLESS - 5
 PLUS:   DW $ + 2
@@ -1005,7 +1005,7 @@ PLUS:   DW $ + 2
         DEC R9
         DEC R9
         SEP RC
-	;
+        ;
         DB $85,"MINU",$D3 ; MINUS
         DW PLUS - 4
 MINUS:  DW $ + 2
@@ -1021,7 +1021,7 @@ MINOS:  INC R9
         ADCI $00
         STR R9
         SEP RC
-	;
+        ;
         DB $82,$44,$AB  ; D+ DBL PRCN INTEGERS
         DW MINUS - 8       ; ARE STORED HIGH 16 BITS TOP
 DPLUS:  DW $ + 2           ; LOW 16 BITS BENEATH
@@ -1058,7 +1058,7 @@ DPLUS:  DW $ + 2           ; LOW 16 BITS BENEATH
         DEC R9
         DEC R9
         SEP RC
-	;
+        ;
         DB $86,"DMINU",$D3 ; DMINUS
         DW DPLUS - 5
 DMIN:   DW $ + 2
@@ -1075,7 +1075,7 @@ DMIN:   DW $ + 2
         INC R9
         INC R9
         BR MINOS
-	;
+        ;
         DB $84,"OVE",$D2 ; OVER
         DW DMIN - 9
 OVER:   DW $ + 2
@@ -1096,14 +1096,14 @@ OVER:   DW $ + 2
         STR R9
         DEC R9
         SEP RC
-	;
+        ;
         DB $84,"DRO",$D0 ; DROP
         DW OVER - 7
 DROP:   DW $ + 2
         DEC R9
         DEC R9
         SEP RC
-	;
+        ;
         DB $84,"SWA",$D0 ; SWAP
         DW DROP - 7
 SWAP:   DW $ + 2
@@ -1128,7 +1128,7 @@ SWAP:   DW $ + 2
         LDN R2
         STR R9
         SEP RC
-	;
+        ;
         DB $83,"DU",$D0  ; DUP
         DW SWAP - 7
 DUP:    DW $ + 2
@@ -1141,7 +1141,7 @@ DUP:    DW $ + 2
         STR R9
         DEC R9
         SEP RC
-	;
+        ;
         DB $82,$2B,$A1  ; +!
         DW DUP - 6
 PLUSS:  DW $ + 2
@@ -1163,7 +1163,7 @@ PLUSS:  DW $ + 2
 POP:    DEC R9
         DEC R9
         SEP RC
-	;
+        ;
         DB $86,"TOGGL",$C5 ; TOGGLE
         DW PLUSS - 5
 TGLE:   DW $ + 2
@@ -1199,7 +1199,7 @@ AT:     DW $ + 2
         STR R9
         DEC R9
         SEP RC
-	;
+        ;
         DB $82,$43,$C0  ; C@
         DW AT - 4
 CAT:    DW $ + 2
@@ -1213,7 +1213,7 @@ CAT:    DW $ + 2
         LDI $00
         STR R9
         SEP RC
-	;
+        ;
         DW $81A1          ; !   STORE
         DW CAT - 5
 EX:     DW $ + 2
@@ -1233,7 +1233,7 @@ EX:     DW $ + 2
         DEC R9
         DEC R9
         SEP RC
-	;
+        ;
         DB $82,$43,$A1  ; C!   C STORE
         DW EX - 4
 CEX:    DW $ + 2
@@ -1287,7 +1287,7 @@ CSEND:  DW $ + 2
 ; THE COMP.STACK
 ; Move this code to avoid short branch across page boundaries.
         LBR CSEND1
-	;
+        ;
         ;
         DB $83,"KE",$D9  ; KEY   READ KEYBOARD
         DW EMIT - 7
@@ -1315,7 +1315,7 @@ KEY:    DW $ + 2
         ;
         ; This seems to work with the MC and TeraTerm (Alt-B)
         DB $89,"?TERMINA",$CC ; ?TERMINAL
-	DW KEY - 6
+        DW KEY - 6
 QTERM:  DW $ + 2
         INC R9          ; Point at high byte of next word
         INC R9
@@ -1446,13 +1446,13 @@ LIMIT:  DW CONST
         DW LIMITB
         ;
         DB $85,"B/BU",$C6 ; B/BUF
-	                       ; BYTES PER BUFFER
+                               ; BYTES PER BUFFER
         DW LIMIT - 8
 BBUF:   DW CONST
         DW $0400          ; 1024 BYTES/BUFFER
         ;
         DB $85,"B/SC",$D2 ; B/SCR
-	                       ; BUFFERS/SCREEN
+                               ; BUFFERS/SCREEN
         DW BBUF - 8
 BSCR:   DW CONST
         DW $0001
@@ -1493,7 +1493,7 @@ WIDTH:  DW USER
         DW $000C
         ;
         DB $87,"WARNIN",$C7 ; WARNING
-	DW WIDTH - 8
+        DW WIDTH - 8
 WRNG:   DW USER
         DW $000E
         ;
@@ -1508,7 +1508,7 @@ DP:     DW USER
         DW $0012
         ;
         DB $88,"VOC-LIN",$CB ; VOC-LINK
-	DW DP - 5
+        DW DP - 5
 VL:     DW USER
         DW $0014
         ;
@@ -1538,12 +1538,12 @@ OFST:   DW USER
         DW $001E
         ;
         DB $87,"CONTEX",$D4 ; CONTEXT
-	DW OFST - 9
+        DW OFST - 9
 CNTX:   DW USER
         DW $0020
         ;
         DB $87,"CURREN",$D4 ; CURRENT
-	DW CNTX - 10
+        DW CNTX - 10
 CRNT:   DW USER
         DW $0022
         ;
@@ -1689,7 +1689,7 @@ MDUP:   DW NEST
         DW SEMIS
         ;
         DB $88,"TRAVERS",$C5 ; TRAVERSE
-	DW MDUP - 7
+        DW MDUP - 7
 TRVS:   DW NEST
         DW SWAP
 TR1:    DW OVER
@@ -1836,7 +1836,7 @@ QLDG:   DW NEST
         ;
         ;
         DB $87,"COMPIL",$C5 ; COMPILE
-	DW QLDG - 11
+        DW QLDG - 11
 CMPL:   DW NEST
         DW QCMP
         DW RG
@@ -1847,7 +1847,7 @@ CMPL:   DW NEST
         DW COMMA
         DW SEMIS
         ;
-	;
+        ;
         DW $C1DB          ; [   LEFT BRACKET
         DW CMPL - 10
 LB:     DW NEST
@@ -2687,7 +2687,7 @@ ABORT:  DW NEST
         DW CR
         DW PDQ
         DB $1C,"1802 FIG-FORTH R0.4  3/16/81"
-	DW DRZER
+        DW DRZER
         DW MTBUF
         DW FIRST
         DW DUP
