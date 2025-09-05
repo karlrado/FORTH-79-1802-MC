@@ -204,10 +204,32 @@ NOTSCRTCALL EQU $0ADB
 NOTSCRTRET  EQU $0AED
         ENDI
         ;
+        ; Memory Layout
+        ;
+        ; Stack area must follow code, plus enough for dictionary expansion
+STACKB  EQU $1F00 + RELOC       ; Computation Stack start S0
+TBUFB   EQU $1F80 + RELOC       ; Terminal Buffer, sandwiched between stacks
+RSTACKT EQU $1FFF + RELOC       ; Return buffer top
+        ;
+        ; USER area
+        ;
+USERB   EQU $2000 + RELOC
+USERL   EQU $1000               ; Size of USER area
+        ;
+        ; Buffers
         ; Buffers are 1024+4 bytes in length
-        ; There are $2C2C (11,308) bytes or 11 buffers defined here
-FIRSTB  EQU $4000 + RELOC ; ADDRESS OF FIRST DISK BUFFER
-LIMITB  EQU $6C2C + RELOC ; END OF DISK BUFFER AREA
+        ;
+NUMBUFS EQU 7
+FIRSTB  EQU USERB + USERL ; ADDRESS OF FIRST DISK BUFFER
+LIMITB  EQU FIRSTB + NUMBUFS * (1024+4) ; END OF DISK BUFFER AREA
+        ;
+        ; RAMDISK
+        ; Consists of 1024-byte sectors
+        ; RAMDE should be one page below top of system RAM
+        ;
+NUMSEC  EQU 12
+RAMDB   EQU LIMITB              ; Start of RAMDISK
+RAMDE   EQU LIMITB + NUMSEC * 1024
         ;
         ; User Variable Layout
         ;
@@ -301,10 +323,10 @@ START:  NOP
         DW $0001            ; REVISION NUMBER
         DW TASK - 7         ; TOPMOST PRGM IN FORTH VOCABULARY
         DW $0008            ; BACKSPACE
-        DW $2000 + RELOC    ; INITIAL USER AREA         UP
-        DW $1F00 + RELOC    ; INITAL STACK              S0
-        DW $1FFF + RELOC    ; INITAL RETURN STACK       R0
-        DW $1F80 + RELOC    ; TERMINAL BUFFER           TIB
+        DW USERB            ; INITIAL USER AREA         UP
+        DW STACKB           ; INITAL STACK              S0
+        DW RSTACKT          ; INITAL RETURN STACK       R0
+        DW TBUFB            ; TERMINAL BUFFER           TIB
         DW $001F            ; NAME FIELD WIDTH          WIDTH
                             ;   (31 DECIMAL)
         DW $0000            ; WARNING                   WARNING
@@ -3568,171 +3590,36 @@ BLOC1:  DW RG           ; <bufAddr blockNum>            Recover blockNum from Re
 ;       R/W determines the location on mass storage, performs the read-write
 ;       and performs any error checking.
 ;
-;       A lot of this code prepares the DV user variable to do disk IO on a specific system.
-;       It can be removed for a simple RAM disk implementation.
         DB $83,$52,$2F,$D7 ; R/W
         DW BLOCK - 8
 RSLW:   DW NEST         ; <bufAddr blk f>
         DW SWAP         ; <bufAddr f blk>
+        DW DUP          ; <bufAddr> f blk blk>
         DW LIT
-        DW $00FA        ; <bufAddr f blk 250>           max 250 blocks per disk
-        DW SLMOD        ; <bufAddr f blk%250 blk/250>
-        DW DUP          ; <bufAddr f blk%250 blk/250 blk/250>
+        DW NUMSEC - 1   ; <bufAddr f blk blk n> Highest "sector" index on the disk
+        DW GTR          ; <bufAddr f blk f>
         DW LIT
-        DW $0003        ; <bufAddr f blk%250 blk/250 blk/250 3>
-        DW GTR          ; <bufAddr f blk%250 blk/250 f> Flag true if > 3
+        DW $0005        ; <bufAddr f blk f 5>
+        DW QERR         ; <bufAddr f blk>
         DW LIT
-        DW $0005        ; <bufAddr f blk%250 blk/250 f 5>
-        DW QERR         ; issue error - disk number too high?
-        DW SWAP         ; <bufAddr f blk/250 blk%250>
+        DW 1024         ; <bufAddr f blk 1024>
+        DW STAR         ; <bufAddr f offset>
         DW LIT
-        DW $0008        ; <bufAddr f blk/250 blk%250 8>
-        DW STAR         ; <bufAddr f blk/250 blk%250*8>
+        DW RAMDB
+        DW PLUS         ; <bufAddr f dskAddr>
+        DW SWAP         ; <bufAddr dskAddr f>
+        DW ZBRCH        ; <bufAddr dskAddr> if f is zero, branch to write path
+        DW RSLW_W       ; <bufAddr dskAddr> write - copy from bufAddr to dskAddr
+        DW SWAP         ; <dskAddr bufAddr> read - copy from dskAddr to bufAddr
+RSLW_W:
         DW LIT
-        DW $0001        
-        DW PLUS         ; <bufAddr f blk/250 N>                 N = blk%250*8+1
-        DW LIT
-        DW $001A        ; <bufAddr f blk/250 N 26>
-        DW SLMOD        ; <bufAddr f blk/250 N%26 N/26>
-        DW DV           ; <bufAddr f blk/250 N%26 N/26 @DV>     User scratch area
-        DW CEX          ; <bufAddr f blk/250 N%26>              DV has N/26 (8-bit)
-        DW ONE
-        DW MINS         ; <bufAddr f blk/250 N%26-1>
-        DW SWAP         ; <bufAddr f N%26-1 blk/250>
-        DW LIT
-        DW $0040        ; <bufAddr f N%26-1 blk/250 64>
-        DW STAR         ; <bufAddr f N%26-1 blk/250*64>
-        DW PLUS         ; <bufAddr f (N%26-1)+blk/250*64>
-        DW DV           ; <bufAddr f (N%26-1)+blk/250*64 DV>
-        DW PLUS1        ; <bufAddr f (N%26-1)+blk/250*64 DV+1>
-        DW CEX          ; <bufAddr f>                           DV+1 has (N%26-1)+blk/250*64 
-        DW ZERO
-        DW DV
-        DW PLUS2        ; <bufAddr f 0 DV+2>
-        DW CEX          ; <bufAddr f>                           DV+2 has zero
-        DW DV           ; <bufAddr f DV>
-        DW BBUF         ; <bufAddr f DV BBUF>
-        DW ROT          ; <bufAddr DV BBUF f>                   Bring R/W flag to top
-        DW ZBRCH
-        DW RWELSE       
-        DW BLKRD        ; <bufAddr DV BBUF>                     Call block read
-        DW BRCH
-        DW RWEND        
-RWELSE: DW BLKWT        ; <bufAddr DV BBUF>                     Call block write
-RWEND:  DW SEMIS
-        DB $0A,"BLOCK-REA",$C4 ; BLOCKREAD
-        DW RSLW - 6
-BLKRD:  DW $ + 2
-        LDI $83
-        PHI R4
-        PHI R5
-        LDI $64
-        PLO R4
-        LDI $74
-        PLO R5
+        DW 1024         ; <from to count>
+        DW CMOVE
+        DW SEMIS
         ;
-        SEX R2
-        GHI RC
-        STXD
-        GLO RC
-        STXD
-        LDA R9
-        PHI R7
-        LDN R9
-        PLO R7
-        DEC R9
-        DEC R9
-        LDN R9
-        PLO RC
-        DEC R9
-        LDN R9
-        PHI RC
-        INC RC
-        INC RC
-        DEC R9
-        LDN R9
-        PLO R8
-        DEC R9
-        LDN R9
-        PHI R8
-        DEC R9
-        DEC R9
-BLKRD2: SEP R4
-        DW $8502
-        GHI RF
-        STR R8
-        INC R8
-        DEC R7
-        GHI R7
-        LBNZ BLKRD2
-        GLO R7
-        LBNZ BLKRD2
-        ;
-        SEX R2
-        IRX
-        LDXA
-        PLO RC
-        LDX
-        PHI RC
-        SEP RC
-        ;
-        DB $0B,"BLOCK-WRIT",$C5 ; BLOCK-WRITE
-        DW BLKRD - 13
-BLKWT:  DW $ + 2
-        LDI $83
-        PHI R4
-        PHI R5
-        LDI $64
-        PLO R4
-        LDI $74
-        PLO R5
-        ;
-        SEX R2
-        GHI RC
-        STXD
-        GLO RC
-        STXD
-        LDA R9
-        PHI R7
-        LDN R9
-        PLO R7
-        DEC R9
-        DEC R9
-        LDN R9
-        PLO RC
-        DEC R9
-        LDN R9
-        PHI RC
-        INC RC
-        INC RC
-        DEC R9
-        LDN R9
-        PLO R8
-        DEC R9
-        LDN R9
-        PHI R8
-        DEC R9
-        DEC R9
-BLKWT2: LDA R8
-        PHI RF
-        SEP R4
-        DW $8500
-        DEC R7
-        GHI R7
-        LBNZ BLKWT2
-        GLO R7
-        LBNZ BLKWT2
-        ;
-        SEX R2
-        IRX
-        LDXA
-        PLO RC
-        LDX
-        PHI RC
-        SEP RC
         ;
         DB $84,"LOA",$C4 ; LOAD
-        DW BLKWT - 14
+        DW RSLW - 6
 LOAD:   DW NEST
         DW BLK
         DW AT
@@ -3786,10 +3673,11 @@ DRZER:  DW NEST
         DB $83,$44,$52,$B1 ; DR1
         DW DRZER - 6
 DRONE:  DW NEST
-        DW BSCR
-        DW LIT             ; 250 SCREENS/DISK
-        DW $00FA
-        DW STAR
+;        DW BSCR
+;        DW LIT             ; 250 SCREENS/DISK
+;        DW $00FA
+;        DW STAR
+        DW ZERO         ; We have only one disk
         DW OFST
         DW EX
         DW SEMIS
