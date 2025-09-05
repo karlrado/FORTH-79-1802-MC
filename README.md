@@ -30,7 +30,8 @@ Herb's (perfect!) translation to a18 syntax is also on that page and can be foun
 The main source code for the port in this repository began with the `forth_a18.asm` file from the hart_figforth.zip file.
 ## Documentation
 The docs folder in this repository contains various reference materials, collected here for convenience:
-* 1010_SystemsGuideToFigForth.pdf - Probably the best reference for figForth, especially for implementers.
+* fig_forth_installation.pdf - Probably the best reference for figForth, especially for implementers. ([source link](https://web.archive.org/web/20221113014633if_/http://archive.6502.org/books/forth_interest_group/fig_forth_installation.pdf))
+* 1010_SystemsGuideToFigForth.pdf - Another useful guide for implementers.
   ([source link](https://www.forth.org/OffeteStore/1010_SystemsGuideToFigForth.pdf))
 * fig-forth-glossary.txt - A great reference guide. ([source link](https://dwheeler.com/6502/fig-forth-glossary.txt))
 * FORTH.ASM - Original version for TASM assembler and starting point for the A18 translation as described [here](https://www.retrotechnology.com/memship/figforth_1802.html). (extracted from 1802_FORTH.zip) ([source link](https://groups.io/g/cosmacelf/files/Forth/Fig-FORTH/1802_FORTH.zip))
