@@ -3385,22 +3385,26 @@ SSKP:   INC R9
         DEC R9
         SEP RC
         ;
+        ; n1 n2 -- addr count
+        ; Convert the line number n1 and the screen n2 to the disk buffer
+        ; address containing the data.  A count of 64 indicates the full line
+        ; text length.
         DB $86,"(LINE",$A9 ; (LINE)
         DW STOD - 7
-PLINE:  DW NEST
-        DW GR
+PLINE:  DW NEST         ; <lineNum screen>
+        DW GR           ; <lineNum>                             Save n2 (screen) on Return stack
         DW LIT
-        DW $0040
-        DW BBUF
-        DW SSMOD
-        DW RG
-        DW BSCR
-        DW STAR
-        DW PLUS
-        DW BLOCK
-        DW PLUS
+        DW $0040        ; <lineNum 64>
+        DW BBUF         ; <lineNum 64 BBUF>                     BBUF is bytes per buffer (typical 1024)
+        DW SSMOD        ; <lineOffset bufferIndex>              (lineNum * 64) / BBUF -> remainder quotient
+        DW RG           ; <lineOffset bufferIndex screen>       Retrieve screen from Return stack
+        DW BSCR         ; <lineOffset bufferIndex screen 1>     Number of buffers per screen (1)
+        DW STAR         ; <lineOffset bufferIndex numBuffers>   Multiply buffer index by buffers per screen
+        DW PLUS         ; <lineOffset blockNum> 
+        DW BLOCK        ; <lineOffset blockAddr>                Get address of block, reading from disk if not already read
+        DW PLUS         ; <addr>                                Address of the line
         DW LIT
-        DW $0040
+        DW $0040        ; <addr 64>                             Indicate full line text length
         DW SEMIS
         ;
         DB $85,".LIN",$C5 ; .LINE
@@ -3502,102 +3506,119 @@ BUFF2:  DW R
         DW PLUS2
         DW SEMIS
         ;
+ ;      n  ---  addr
+ ;      Leave the memory address of the block buffer containing block n. If
+ ;      the block is not already in memory, it is transferred from disc to
+ ;      which ever buffer Was least recently written. If the block occupying
+ ;      that buffer has been marked as updated, it is rewritten to disc
+ ;      before block n is read into the buffer. See also BUFFER, R/W UPDATE
+ ;      FLUSH        
         DB $85,"BLOC",$CB ; BLOCK
         DW BUFFE - 9
-BLOCK:  DW NEST
-        DW OFST
-        DW AT
-        DW PLUS
-        DW GR
+BLOCK:  DW NEST         ; <blockNum>
+        DW OFST         ; <blockNum *OFFSET>
+        DW AT           ; <blockNum offset>             Offset can be used to point to multiple disks
+        DW PLUS         ; <blockNum>                    Access additional disks
+        DW GR           ; <>                            Copy blockNum to Return stack
         DW PREV
-        DW AT
-        DW DUP
-        DW AT
-        DW R
-        DW MINS
-        DW DUP
-        DW PLUS
-        DW ZBRCH
+        DW AT           ; <prevAddr>                    Most recently referenced buffer
+        DW DUP          ; <prevAddr prevAddr>
+        DW AT           ; <prevAddr prevBlock>          Get prev block number
+        DW R            ; <prevAddr prevBlock blockNum> Get saved block number
+        DW MINS         ; <prevAddr d)>                 Compare prev with requested block number (d)
+        DW DUP          ; <prevAddr d d>
+        DW PLUS         ; <prevAddr 2d>                 Discard update bit
+        DW ZBRCH        ; <prevAddr>                    Leave if requested block number is in the buffer
         DW BLOC1
-BLOC2:  DW PBUF
-        DW ZEQAL
-        DW ZBRCH
+        ; Scan the buffers for a buffer that contains the requested block
+BLOC2:  DW PBUF         ; <bufAddr flag>                Advance to the next buffer, leaving a flag, false if same as PREV
+        DW ZEQAL        ; <bufAddr flag>                Flip flag - now true if same as PREV
+        DW ZBRCH        ; <bufAddr>                     Branch if not PREV, else PREV marks end of scan
         DW BLOC3
-        DW DROP
-        DW R
-        DW BUFFE
-        DW DUP
-        DW R
-        DW ONE
-        DW RSLW
-        DW TWO
-        DW MINS
-BLOC3:  DW DUP
-        DW AT
-        DW R
-        DW MINS
-        DW DUP
-        DW PLUS
-        DW ZEQAL
-        DW ZBRCH
+        DW DROP         ; <>
+        DW R            ; <blockNum>                    Retrieve block number from return stack
+        DW BUFFE        ; <bufAddr>                     Get address of buffer
+        DW DUP          ; <bufAddr bufAddr>
+        DW R            ; <bufAddr bufAddr blockNum>
+        DW ONE          ; <bufAddr bufAddr blockNum 1>  Get ready to read a block from disk
+        DW RSLW         ; <bufAddr>                     Read block from disk
+        DW TWO          ; <bufAddr 2>
+        DW MINS         ; <bufAddr>                     Adjust to start of buffer where block number is
+BLOC3:  DW DUP          ; <bufAddr bufAddr>
+        DW AT           ; <bufAddr blockNum>            Read block number from buffer
+        DW R            ; <bufAddr blockNum blockNum>   Get requested block number from return stack
+        DW MINS         ; <bufAddr d>                   Compare
+        DW DUP          ; <bufAddr d d>
+        DW PLUS         ; <bufAddr 2d>                  Drop update bit
+        DW ZEQAL        ; <bufAddr f>                   Flag true if block nums are the same
+        DW ZBRCH        ; <bufAddr>                     Go to BLOC2 if not the same
         DW BLOC2
-        DW DUP
-        DW PREV
-        DW EX
-BLOC1:  DW RG
-        DW DROP
-        DW PLUS2
+        DW DUP          ; <bufAddr bufAddr>
+        DW PREV         ; <bufAddr bufAddr @PREV>
+        DW EX           ; <bufAddr>                     Update PREV with buffer address
+BLOC1:  DW RG           ; <bufAddr blockNum>            Recover blockNum from Return stack  
+        DW DROP         ; <bufAddr>                     Cleanup
+        DW PLUS2        ; <bufAddr>                     Point to buffer data
         DW SEMIS
         ;
+;       R/W addr blk f --
+;       The fig-FORTH standard disc read-write linkage. addr specifies the
+;       source or destination block buffer, blk is the sequential number of
+;       the referenced block; and f is a flag for f=O write and f=l read.
+;       R/W determines the location on mass storage, performs the read-write
+;       and performs any error checking.
+;
+;       A lot of this code prepares the DV user variable to do disk IO on a specific system.
+;       It can be removed for a simple RAM disk implementation.
         DB $83,$52,$2F,$D7 ; R/W
         DW BLOCK - 8
-RSLW:   DW NEST
-        DW SWAP
+RSLW:   DW NEST         ; <bufAddr blk f>
+        DW SWAP         ; <bufAddr f blk>
         DW LIT
-        DW $00FA
-        DW SLMOD
-        DW DUP
+        DW $00FA        ; <bufAddr f blk 250>           max 250 blocks per disk
+        DW SLMOD        ; <bufAddr f blk%250 blk/250>
+        DW DUP          ; <bufAddr f blk%250 blk/250 blk/250>
         DW LIT
-        DW $0003
-        DW GTR
+        DW $0003        ; <bufAddr f blk%250 blk/250 blk/250 3>
+        DW GTR          ; <bufAddr f blk%250 blk/250 f> Flag true if > 3
         DW LIT
-        DW $0005
-        DW QERR
-        DW SWAP
+        DW $0005        ; <bufAddr f blk%250 blk/250 f 5>
+        DW QERR         ; issue error - disk number too high?
+        DW SWAP         ; <bufAddr f blk/250 blk%250>
         DW LIT
-        DW $0008
-        DW STAR
+        DW $0008        ; <bufAddr f blk/250 blk%250 8>
+        DW STAR         ; <bufAddr f blk/250 blk%250*8>
         DW LIT
-        DW $0001
-        DW PLUS
+        DW $0001        
+        DW PLUS         ; <bufAddr f blk/250 N>                 N = blk%250*8+1
         DW LIT
-        DW $001A
-        DW SLMOD
-        DW DV
-        DW CEX
+        DW $001A        ; <bufAddr f blk/250 N 26>
+        DW SLMOD        ; <bufAddr f blk/250 N%26 N/26>
+        DW DV           ; <bufAddr f blk/250 N%26 N/26 @DV>     User scratch area
+        DW CEX          ; <bufAddr f blk/250 N%26>              DV has N/26 (8-bit)
         DW ONE
-        DW MINS
-        DW SWAP
+        DW MINS         ; <bufAddr f blk/250 N%26-1>
+        DW SWAP         ; <bufAddr f N%26-1 blk/250>
         DW LIT
-        DW $0040
-        DW STAR
-        DW PLUS
-        DW DV
-        DW PLUS1
-        DW CEX
+        DW $0040        ; <bufAddr f N%26-1 blk/250 64>
+        DW STAR         ; <bufAddr f N%26-1 blk/250*64>
+        DW PLUS         ; <bufAddr f (N%26-1)+blk/250*64>
+        DW DV           ; <bufAddr f (N%26-1)+blk/250*64 DV>
+        DW PLUS1        ; <bufAddr f (N%26-1)+blk/250*64 DV+1>
+        DW CEX          ; <bufAddr f>                           DV+1 has (N%26-1)+blk/250*64 
         DW ZERO
         DW DV
-        DW PLUS2
-        DW CEX
-        DW DV
-        DW BBUF
-        DW ROT
+        DW PLUS2        ; <bufAddr f 0 DV+2>
+        DW CEX          ; <bufAddr f>                           DV+2 has zero
+        DW DV           ; <bufAddr f DV>
+        DW BBUF         ; <bufAddr f DV BBUF>
+        DW ROT          ; <bufAddr DV BBUF f>                   Bring R/W flag to top
         DW ZBRCH
-        DW RWELSE
-        DW BLKRD
+        DW RWELSE       
+        DW BLKRD        ; <bufAddr DV BBUF>                     Call block read
         DW BRCH
-        DW RWEND
-RWELSE: DW BLKWT
+        DW RWEND        
+RWELSE: DW BLKWT        ; <bufAddr DV BBUF>                     Call block write
 RWEND:  DW SEMIS
         DB $0A,"BLOCK-REA",$C4 ; BLOCKREAD
         DW RSLW - 6
