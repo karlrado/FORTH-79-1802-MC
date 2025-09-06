@@ -53,37 +53,29 @@
 ;
 ;               THIS LISTING TYPED     PRINTED 3/18/81
 ;
+; Ported to Membership Card - Karl Schultz, September 2025
 ;
-;       THE I/O VECTORS FOR DISC  ARE POINTING TO
-;       ROUTINES FOR THE RCA CDP18S007, CDP18S008
-;       OR THE CDP 18SOO5..
-;       FOR OTHER SYSTEMS YOU WILL NEED TO
-;       CHANGE THE POINTERS AND WRITE YOUR
-;       OWN ROUTINES.;
+; Terminal I/O:
+;       The original code assumes the use of the
+;       RCA CDP1854 UART.  This version assumes that
+;       the MCSMP ROM is in place on the Membership
+;       Card (MC), and can be compiled for this ROM
+;       located at $0000 or $8000.
 ;
-; THE USER VARIABLE  DV IS 3 BYTES LONG
-; (USER AREA OFFSET 32H 33H 34H) AND IS USED
-; TO PASS VARIABLES TO THE RCA ROM UTILITY
-; WHEN CALLING FOR DISK I/O.  THE RESIDENT ROM
-; UTILITIES PRODUCE THEIR OWN ERROR MESSAGES.
+; Disk I/O:
+;       The original code assumed hardware such as
+;       RCA CDP18S007, CDP18S008, CDP18SOO5 and used
+;       a 3-byte user variable DV to pass parameters
+;       to the RCA ROM disk utility.
 ;
-; THIS VERSION ASSEMBLES WITH START UP CONSTANTS THAT
-; ASSUME 28K OF RAM. DISC BUFFERS ARE
-; SET FOR 1K (THIS CAN BE EASILY CHANGED
-; BY CHANGING FIRST, LIMIT, B/BUF AND B/SCR).
-; BLOCK 0 BEGINS AT TRACK 0 SECTOR 1.
+;       For the MC, this version uses a RAMDISK,
+;       since the MC has no disk storage.  This is
+;       implemented by simply calling CMOVE from R/W
+;       to copy between Forth buffers and the RAMDISK.
+;       There is only one drive, so DR1 is a NOOP.
 ;
-;
-; DR1 (SET DRIVE TO 1) IS IMPLEMENTED AS:
-;  : DR1 B/SCR 250 * OFFSET ! ;
-; THERFORE B/SCR AND B/BUF CAN BE CHANGED WITHOUT
-; HAVING TO REWRITE
-; DR1.
-; THE TERMINAL I/O ASSUMES THE USE OF AN
-; RCA CDP1854 UART CONFIGURED IN ONE OF THE
-; ABOVE MENTIONED SYSTEMS.  THE UART IS DRIVEN
-; DIRECTLY WITHOUT CALLING RCA ROM UTILITY
-; ROUTINES.
+;       The size and location of the RAMDISK can be
+;       configured below.
 ;
 ;
 ; THE FORTH WORD   MON   EXITS FORTH AND RETURNS
@@ -1629,16 +1621,11 @@ RNU:    DW USER
         DW RNU - 5
 HLD:    DW USER
         DW $0030
-        DB $82,$44,$D6  ; DV
-        DW HLD - 6         ; 3 BYTE VECTOR AREA
-; USED DURING DISK OPERATIONS
-DV:     DW USER
-        DW $0032
         ;
         ; END OF USER VARIABLES
         ;
         DB $82,$31,$AB  ; 1+
-        DW DV - 5
+        DW HLD - 6
 PLUS1:  DW NEST
         DW ONE
         DW PLUS
@@ -2581,6 +2568,7 @@ DLTL1:  DW SEMIS
         DW DLTL - 11
         ; Updated to read the computation stack pointer first, before pushing anything else onto the stack.
         ; This ensures that we're testing the stack pointer at the start of QSTK and not after any pushes done by QSTK.
+        ; Otherwise, with the original code, you had to underflow the stack by two words before detecting the error.
 QSTK:   DW NEST
         DW FSPAT
         DW DUP
@@ -3881,6 +3869,11 @@ ZEROLP: LDI $0
         LBR (RP1 + 2)
         ;
 LEND:   NOP                 ; INITIAL FENCE IS HERE
+        ;
+        ; Check to make sure that the code doesn't extend into the stack area.
+        IF LEND >= STACKB
+        INCL "code too large"   ; Intentionally cause assembler error
+        ENDI
         ;
         ; TO EXTEND THIS PORTION TO INCLUDE
         ; NEW WORDS, FIRST USE
