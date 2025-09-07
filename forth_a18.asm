@@ -187,6 +187,7 @@ MCSMPOUTSTR EQU $8526
 MCSMPSERIAL EQU $7FCD
 NOTSCRTCALL EQU $8ADB
 NOTSCRTRET  EQU $8AED
+TOPRAM      EQU $7FFF - 64      ; MCSMP reserves the top 64 bytes of RAM
         ELSE
 MCSMPINPUT  EQU $0005
 MCSMPOUTPUT EQU $021D
@@ -194,6 +195,7 @@ MCSMPOUTSTR EQU $0526
 MCSMPSERIAL EQU $FFCD
 NOTSCRTCALL EQU $0ADB
 NOTSCRTRET  EQU $0AED
+TOPRAM      EQU $FFFF - 64      ; MCSMP reserves the top 64 bytes of RAM
         ENDI
         ;
         ; Memory Layout
@@ -220,7 +222,7 @@ LIMITB  EQU FIRSTB + NUMBUFS * (1024+4) ; END OF DISK BUFFER AREA
         ; RAMDE should be one page below top of system RAM
         ;
 NUMSEC  EQU 12
-RAMDB   EQU LIMITB              ; Start of RAMDISK
+RAMDB   EQU (LIMITB + $00FF) AND $FF00  ; Start of RAMDISK
 RAMDE   EQU LIMITB + NUMSEC * 1024
         ;
         ; User Variable Layout
@@ -321,7 +323,7 @@ START:  NOP
         DW TBUFB            ; TERMINAL BUFFER           TIB
         DW $001F            ; NAME FIELD WIDTH          WIDTH
                             ;   (31 DECIMAL)
-        DW $0000            ; WARNING                   WARNING
+        DW $0001            ; WARNING                   WARNING - We have messages on RAMDISK
         DW LEND             ; FENCE                     FENCE
         DW LEND             ; INIT DICTIONARY POINTER   DP
         DW FRTH + 16        ; INIT VOCAB                VOC-LINK
@@ -3895,7 +3897,139 @@ LEND:   NOP                 ; INITIAL FENCE IS HERE
         ;
         ;
         ;
+        ; RAMDISK definitions.
         ;
+        ; The intent of this RAMDISK is to allow the user to save and restore
+        ; a RAMDISK to/from a HEX file with the MCSMP monitor program.
         ;
+        ; Typically, the user would use FORTH for a while and then exit FORTH
+        ; to the MCSMP and then save the RAMDISK memory to a HEX file.
+        ; Later, they would load the HEX file into memory and then load and start
+        ; FORTH and be able to access the saved data.
+        ;
+        ; This implementation predefines a few sectors for convenience.
+        ; When this FORTH is loaded, it will overwrite the same sectors that
+        ; may have been preloaded from a saved HEX file.  This isn't an issue
+        ; as long as the user doesn't use these sectors.
+        ; If the functionality provided by these sectors is not wanted, they
+        ; can simply be removed from the code below and then the sectors can
+        ; be reused for any purpose.
+        ;
+        ; Note that if the error messages are removed, WARNING should be set to 0.
+        ;
+        ; If the user wants to NOT have FORTH overwrite RAMDISK sectors when loaded,
+        ; the user can save these predefined sectors in their RAMDISK and then rebuild
+        ; this FORTH to not define the sectors in the code below.
+        ;
+        ; Sectors 4 and 5 contain Forth error messages.
+        ; Sectors 6 and 7 contain the EDITOR vocabulary.
+        ;
+        ; There are 16 lines of 64 characters in each 1024-byte sector
+        ORG RAMDB + 4 * 1024
+        TEXT "( ERROR MESSAGES )                                              "
+        TEXT "EMPTY STACK                                                     "
+        TEXT "DICTIONARY FULL                                                 "
+        TEXT "HAS INCORRECT ADDRESS MODE                                      "
+        TEXT "ISN'T UNIQUE                                                    "
+        TEXT "SECTOR NUMBER OUT OF BOUNDS                                     "
+        TEXT "DISC RANGE ?                                                    "
+        TEXT "FULL STACK                                                      "
+        TEXT "DISC ERROR                                                      "
+        FILL 20H, 64
+        FILL 20H, 64
+        FILL 20H, 64
+        FILL 20H, 64
+        FILL 20H, 64
+        FILL 20H, 64
+        TEXT "FORTH INTEREST GROUP                    MAY 1, 1979             "
+        ORG RAMDB + 5 * 1024
+        TEXT "( ERROR MESSAGES )                                              "
+        TEXT "COMPILATION ONLY, USE IN DEFINITION                             "
+        TEXT "EXECUTION ONLY                                                  "
+        TEXT "CONDITIONALS NOT PAIRED                                         "
+        TEXT "DEFINITION NOT FINISHED                                         "
+        TEXT "IN PROTECTED DICTIONARY                                         "
+        TEXT "USE ONLY WHEN LOADING                                           "
+        TEXT "OFF CURRENT EDITING SCREEN                                      "
+        TEXT "DECLARE VOCABULARY                                              "
+        FILL 20H, 64
+        FILL 20H, 64
+        FILL 20H, 64
+        FILL 20H, 64
+        FILL 20H, 64
+        FILL 20H, 64
+        FILL 20H, 64
+        ;
+        ; EDITOR VOCABULARY
+        ;
+        ; Implements the "line editor" functions (no "string editing" functions)
+        ; See the fig_forth_installation document for source and documentation.
+        ;
+        ; FORTH: TEXT LINE
+        ; EDITOR: WHERE #LOCATE #LEAD #LAG -MOVE H E S D M T L R P I TOP CLEAR FLUSH
+        ;
+        ; Use by:
+        ; 6 LOAD (Ignore non-unique messages)
+        ; EDITOR
+        ; n LIST (n is sector you wish to edit)
+        ; 
+        ;
+        ORG RAMDB + 6 * 1024
+        ; These are heavily compressed to save space (comments, whitespace removed )
+        ; See the fig_forth_installation.pdf for the original sources.
+        TEXT "FORTH DEFINITIONS HEX : TEXT HERE C/L 1+ BLANKS WORD HERE PAD   " ; 0
+        TEXT "C/L 1+ CMOVE ; : LINE DUP FFF0 AND 17 ?ERROR SCR @ (LINE) DROP  "
+        TEXT "; VOCABULARY EDITOR IMMEDIATE HEX : WHERE DUP B/SCR / DUP SCR ! "
+        ; The next line has embedded ", so handle carefully.
+        TEXT "."
+        DB 34
+        TEXT " SCR # "
+        DB 34
+        TEXT           " DECIMAL . SWAP C/L /MOD C/L * ROT BLOCK + CR C/L     " ; 3
+        TEXT "TYPE CR HERE C@ - SPACES 5E EMIT [COMPILE] EDITOR QUIT ;        "
+        TEXT "EDITOR DEFINITIONS : #LOCATE R# @ C/L /MOD ; : #LEAD #LOCATE    " ; 5
+        TEXT "LINE SWAP ; : #LAG #LEAD DUP >R + C/L R> - ; : -MOVE LINE C/L   "
+        TEXT "CMOVE UPDATE ; : H LINE PAD 1+ C/L DUP PAD C! CMOVE ; : E LINE  "
+        TEXT "C/L BLANKS UPDATE ; : S DUP 1 - ( LIMIT ) 0E DO I LINE I 1+     "
+        TEXT "-MOVE -1 +LOOP E ; : D DUP H 0F DUP ROT DO I 1+ LINE I -MOVE    "
+        TEXT "LOOP E ; : M R# +! CR SPACE #LEAD TYPE 5F EMIT #LAG TYPE        " ; 10
+        TEXT "#LOCATE . DROP ; : T DUP C/L * R# ! DUP H 0 M ; : L SCR @ LIST  "
+        TEXT "0 M ; : R PAD 1+ SWAP -MOVE ; : P 1 TEXT R ; : I DUP S R ;      "
+        TEXT ": TOP 0 R# ! ; : CLEAR SCR ! 10 0 DO FORTH I EDITOR E LOOP ;    "
+        TEXT " -->                                                            "
+        FILL 20H, 64
+        ;
+        ORG RAMDB + 7 * 1024
+        TEXT ": FLUSH [ LIMIT FIRST - B/BUF 4 + / ] LITERAL 0 DO 7FFF BUFFER  "
+        TEXT "DROP LOOP ;                                                     "
+        TEXT "FORTH DEFINITIONS DECIMAL                                       "
+        TEXT "LATEST 12 +ORIGIN ! HERE 28 +ORIGIN ! HERE 30 +ORIGIN !         "
+        TEXT "' EDITOR 6 + 32 +ORIGIN ! HERE FENCE ! ;S                       " 
+        FILL 20H, 64
+        FILL 20H, 64
+        FILL 20H, 64
+        FILL 20H, 64
+        FILL 20H, 64
+        FILL 20H, 64
+        FILL 20H, 64
+        FILL 20H, 64
+        FILL 20H, 64
+        FILL 20H, 64
+        FILL 20H, 64
+ENDITALL:
+        ; Check to make sure that the entire image fits in memory.
+        IF RELOC EQ $0000
+        IF ENDITALL GT TOPRAM 
+        INCL "image too large"  ; Intentionally cause assembler error
+        ENDI
+        ENDI
+        IF RELOC EQ $8000
+        IF ENDITALL GT TOPRAM 
+        INCL "image too large"  ; Intentionally cause assembler error
+        ENDI
+        IF ENDITALL LT $8000    ; Handle wraparound 
+        INCL "image too large"  ; Intentionally cause assembler error
+        ENDI
+        ENDI
         END
         
