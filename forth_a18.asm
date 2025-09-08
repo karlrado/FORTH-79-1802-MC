@@ -223,7 +223,7 @@ LIMITB  EQU FIRSTB + NUMBUFS * (1024+4) ; END OF DISK BUFFER AREA
         ;
 NUMSEC  EQU 12
 RAMDB   EQU (LIMITB + $00FF) AND $FF00  ; Start of RAMDISK
-RAMDE   EQU LIMITB + NUMSEC * 1024
+RAMDE   EQU RAMDB + NUMSEC * 1024
         ;
         ; User Variable Layout
         ;
