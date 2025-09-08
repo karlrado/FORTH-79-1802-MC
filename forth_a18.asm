@@ -290,11 +290,14 @@ START1: ; Send a null to get the MCSMP Q line in the right state to avoid first 
         ;
         ; "Patch" for EMIT to send a single character
         ; Code moved here only to avoid short branch issues.
+        ; - Mask off the high flag bit of each character because Forth words like VLIST print the
+        ;   word names directly from the dictionary without removing the flag.
 CSEND1: GLO RB          ; Preserve RB  
         STR R2
         DEC R2
         INC R9
         LDN R9
+        ANI $7F
         PLO RB
         SEP R4
         DW MCSMPOUTPUT
